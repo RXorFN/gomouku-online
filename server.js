@@ -25,12 +25,15 @@ const roomManager = new RoomManager();
 const onlineUsers = new Map();
 
 setInterval(() => {
+  console.log(`[匹配轮询] 队列长度: ${matchQueue.queue.length}, 在线用户: ${onlineUsers.size}`);
   if (matchQueue.queue.length >= 2) {
     for (let i = 0; i < matchQueue.queue.length; i++) {
       const player = matchQueue.queue[i];
+      console.log(`[匹配轮询] 检查玩家: ${player.username}, ID: ${player.id}`);
       const match = matchQueue.findMatch(player);
       if (match) {
         const [player1, player2] = match;
+        console.log(`[匹配成功] ${player1.username} vs ${player2.username}`);
         const roomId = uuidv4();
         
         const room = roomManager.createRoom(roomId, player1, player2);
@@ -38,6 +41,7 @@ setInterval(() => {
         
         const socket1 = onlineUsers.get(player1.id);
         const socket2 = onlineUsers.get(player2.id);
+        console.log(`[Socket检查] player1 socket: ${!!socket1}, player2 socket: ${!!socket2}`);
         
         if (socket1) {
           socket1.join(roomId);
@@ -180,9 +184,12 @@ io.on('connection', (socket) => {
 
   socket.on('auth', (data) => {
     try {
+      console.log(`[认证] 收到认证请求`);
       const jwt = require('jsonwebtoken');
       const decoded = jwt.verify(data.token, 'gomoku-secret-key-2024');
+      console.log(`[认证] Token解码成功: userId=${decoded.id}`);
       currentUser = User.findById(decoded.id);
+      console.log(`[认证] 用户查询结果:`, currentUser);
       
       if (currentUser) {
         onlineUsers.set(currentUser.id, socket);
@@ -196,8 +203,11 @@ io.on('connection', (socket) => {
         });
         console.log(`用户 ${currentUser.username} 已连接`);
         io.emit('online_update', { count: onlineUsers.size });
+      } else {
+        console.log(`[认证] 用户不存在: ${decoded.id}`);
       }
     } catch (err) {
+      console.error(`[认证失败]`, err.message);
       socket.emit('auth_error', { error: '认证失败' });
     }
   });
@@ -220,11 +230,14 @@ io.on('connection', (socket) => {
       return;
     }
 
-    matchQueue.addPlayer({
+    const playerEntry = matchQueue.addPlayer({
       id: currentUser.id,
       username: currentUser.username,
       rating: currentUser.rating
     });
+
+    console.log(`[匹配] 用户 ${currentUser.username} 加入队列, 当前队列长度: ${matchQueue.queue.length}`);
+    console.log(`[匹配] 队列内容:`, matchQueue.queue.map(p => ({id: p.id, name: p.username, rating: p.rating})));
 
     socket.emit('match_waiting', { 
       message: '匹配中...',

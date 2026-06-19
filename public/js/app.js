@@ -20,9 +20,15 @@ class GomokuClient {
   initSocket() {
     this.socket.on('connect', () => {
       console.log('已连接到服务器');
+      const token = localStorage.getItem('token');
+      if (token) {
+        console.log('自动发送认证请求:', token.substring(0, 20) + '...');
+        this.socket.emit('auth', { token });
+      }
     });
 
     this.socket.on('auth_success', (data) => {
+      console.log('认证成功:', data);
       this.currentUser = data.user;
       this.showLobby();
       this.refreshUserInfo();
@@ -107,15 +113,18 @@ class GomokuClient {
         });
         
         const data = await response.json();
+        console.log('登录响应:', data);
         
         if (data.success) {
           localStorage.setItem('token', data.token);
           localStorage.setItem('user', JSON.stringify(data.user));
+          console.log('登录成功，发送Socket认证');
           this.socket.emit('auth', { token: data.token });
         } else {
           this.showError(data.error);
         }
       } catch (err) {
+        console.error('登录请求失败:', err);
         this.showError('登录失败');
       }
     });
@@ -150,11 +159,13 @@ class GomokuClient {
 
     // 匹配按钮
     document.getElementById('match-btn').addEventListener('click', () => {
+      console.log('点击匹配按钮，当前用户:', this.currentUser);
       this.socket.emit('match');
     });
 
     // 取消匹配
     document.getElementById('cancel-match-btn').addEventListener('click', () => {
+      console.log('点击取消匹配');
       this.socket.emit('cancel_match');
       this.resetMatchUI();
     });
