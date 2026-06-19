@@ -24,6 +24,48 @@ const matchQueue = new MatchQueue();
 const roomManager = new RoomManager();
 const onlineUsers = new Map();
 
+setInterval(() => {
+  if (matchQueue.queue.length >= 2) {
+    for (let i = 0; i < matchQueue.queue.length; i++) {
+      const player = matchQueue.queue[i];
+      const match = matchQueue.findMatch(player);
+      if (match) {
+        const [player1, player2] = match;
+        const roomId = uuidv4();
+        
+        const room = roomManager.createRoom(roomId, player1, player2);
+        GameRecord.create(roomId, player1.id, player2.id, room.board.getSnapshot());
+        
+        const socket1 = onlineUsers.get(player1.id);
+        const socket2 = onlineUsers.get(player2.id);
+        
+        if (socket1) {
+          socket1.join(roomId);
+          socket1.emit('match_success', {
+            roomId,
+            player: 'A',
+            opponent: { id: player2.id, username: player2.username, rating: player2.rating },
+            currentTurn: 'A'
+          });
+        }
+        
+        if (socket2) {
+          socket2.join(roomId);
+          socket2.emit('match_success', {
+            roomId,
+            player: 'B',
+            opponent: { id: player1.id, username: player1.username, rating: player1.rating },
+            currentTurn: 'A'
+          });
+        }
+        
+        console.log(`房间 ${roomId} 创建成功: ${player1.username} vs ${player2.username}`);
+        break;
+      }
+    }
+  }
+}, 1000);
+
 app.post('/api/register', (req, res) => {
   try {
     const { username, password, email } = req.body;
@@ -178,7 +220,7 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const playerEntry = matchQueue.addPlayer({
+    matchQueue.addPlayer({
       id: currentUser.id,
       username: currentUser.username,
       rating: currentUser.rating
@@ -190,40 +232,6 @@ io.on('connection', (socket) => {
     });
 
     console.log(`用户 ${currentUser.username} 进入匹配队列`);
-
-    const match = matchQueue.findMatch(playerEntry);
-    if (match) {
-      const [player1, player2] = match;
-      const roomId = uuidv4();
-      
-      const room = roomManager.createRoom(roomId, player1, player2);
-      GameRecord.create(roomId, player1.id, player2.id, room.board.getSnapshot());
-      
-      const socket1 = onlineUsers.get(player1.id);
-      const socket2 = onlineUsers.get(player2.id);
-      
-      if (socket1) {
-        socket1.join(roomId);
-        socket1.emit('match_success', {
-          roomId,
-          player: 'A',
-          opponent: { id: player2.id, username: player2.username, rating: player2.rating },
-          currentTurn: 'A'
-        });
-      }
-      
-      if (socket2) {
-        socket2.join(roomId);
-        socket2.emit('match_success', {
-          roomId,
-          player: 'B',
-          opponent: { id: player1.id, username: player1.username, rating: player1.rating },
-          currentTurn: 'A'
-        });
-      }
-      
-      console.log(`房间 ${roomId} 创建成功: ${player1.username} vs ${player2.username}`);
-    }
   });
 
   socket.on('cancel_match', () => {

@@ -36,7 +36,11 @@ class GomokuClient {
       document.getElementById('match-btn').disabled = true;
       document.getElementById('match-status').classList.remove('hidden');
       document.getElementById('cancel-match-btn').classList.remove('hidden');
-      this.updateMatchStatus(data.waitTime);
+      this.matchStartTime = Date.now();
+      this.matchTimer = setInterval(() => {
+        const waitTime = Date.now() - this.matchStartTime;
+        this.updateMatchStatus(waitTime);
+      }, 1000);
     });
 
     this.socket.on('match_cancelled', () => {
@@ -467,6 +471,10 @@ class GomokuClient {
     document.getElementById('match-btn').disabled = false;
     document.getElementById('match-status').classList.add('hidden');
     document.getElementById('cancel-match-btn').classList.add('hidden');
+    if (this.matchTimer) {
+      clearInterval(this.matchTimer);
+      this.matchTimer = null;
+    }
   }
 
   // 发送聊天
